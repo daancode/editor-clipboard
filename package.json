@@ -1,0 +1,21 @@
+{
+    "name": "com.daancode.clipboard",
+    "version": "1.0.0",
+    "displayName": "Editor Clipboard",
+    "description": "Simple tool that allows you to keep important files for quick access.",
+    "unity": "2020.1",
+    "keywords": [
+      "editor",
+      "clipboard",
+      "daancode",
+      "quick",
+      "access",
+      "quick-access",
+      "editor-clipboard"
+    ],
+    "author": {
+      "name": "Damian Barczynski",
+      "email": "kontakt.daan@gmail.com",
+      "url": "https://github.com/daancode"
+    }
+}
