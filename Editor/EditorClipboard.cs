@@ -31,14 +31,16 @@ namespace Daancode.Utils
     public class EditorClipboard : EditorWindow
     {
         [System.Serializable]
-        private class SerializableList
+        private class ClipboardData
         {
-            public List<Object> Objects = new List<Object>();
+            public const string KEY = "daancode:editor_clipboard";
+
+            public List<string> Assets = new List<string>();
+            public bool AutoSave = false;
         }
-
-        private const string PREFS_KEY = "daancode:editor_clipboard";
-
-        private readonly SerializableList _serializableList = new SerializableList();
+       
+        private ClipboardData _clipboardData = new ClipboardData();
+        private readonly List<Object> _clipboard = new List<Object>();
         private readonly List<Object> _selected = new List<Object>();
         private readonly List<Object> _toRemove = new List<Object>();
         private Vector2 _scrollPosition = Vector2.zero;
@@ -49,8 +51,8 @@ namespace Daancode.Utils
             var window = GetWindow<EditorClipboard>();
             window.titleContent = new GUIContent
             {
-                text = " Clip",
-                image = EditorGUIUtility.IconContent("Clipboard").image
+                text = string.Empty,
+                image = Style.GetIcon("Favorite").image
             };
             window.minSize = new Vector2(120, 220);
             window.maxSize = new Vector2(120, 4000);
@@ -62,22 +64,57 @@ namespace Daancode.Utils
             LoadObjectsFromPrefs();
         }
 
-        private void SaveObjectsInPrefs()
+        private void SaveObjectsInPrefs(bool notify = true)
         {
-            var serializedObjects = JsonUtility.ToJson(_serializableList);
-            EditorPrefs.SetString(PREFS_KEY, serializedObjects);
-            Debug.Log($"Saved {_serializableList.Objects.Count} objects in editor prefs.");
+            _clipboardData.Assets.Clear();
+            for (var i = 0; i < _clipboard.Count; ++i)
+            {
+                var asset = _clipboard[i];
+                if(asset == null)
+                {
+                    continue;
+                }
+
+                var assetPath = AssetDatabase.GetAssetPath(asset);
+                _clipboardData.Assets.Add(AssetDatabase.AssetPathToGUID(assetPath));
+            }
+
+            EditorPrefs.SetString(ClipboardData.KEY, JsonUtility.ToJson(_clipboardData));
+
+            if(notify)
+            {
+                ShowNotification(new GUIContent($"Saved."));
+            }
         }
 
-        private void LoadObjectsFromPrefs()
+        private void LoadObjectsFromPrefs(bool notify = true)
         {
-            if (!EditorPrefs.HasKey(PREFS_KEY))
+            if (!EditorPrefs.HasKey(ClipboardData.KEY))
             {
                 return;
             }
-            
-            var objects = EditorPrefs.GetString(PREFS_KEY);
-            JsonUtility.FromJsonOverwrite(objects, _serializableList);
+
+            _clipboardData.Assets.Clear();
+            var serializedAssets = EditorPrefs.GetString(ClipboardData.KEY);
+            JsonUtility.FromJsonOverwrite(serializedAssets, _clipboardData);
+
+            for(var i = 0; i < _clipboardData.Assets.Count; ++i)
+            {
+                var assetGUID = _clipboardData.Assets[i];
+                var assetPath = AssetDatabase.GUIDToAssetPath(assetGUID);
+                var asset = AssetDatabase.LoadAssetAtPath<Object>(assetPath);
+                if(asset == null || _clipboard.Contains(asset))
+                {
+                    continue;
+                }
+
+                _clipboard.Add(asset);
+            }
+
+            if (notify)
+            {
+                ShowNotification(new GUIContent($"Loaded."));
+            }
         }
 
         private void OnGUI()
@@ -85,7 +122,7 @@ namespace Daancode.Utils
             OnToolbarGUI();
             var rect = EditorGUILayout.BeginVertical();
             
-            if(_serializableList.Objects.Count == 0)
+            if(_clipboard.Count == 0)
             {
                 GUILayout.FlexibleSpace();
                 EditorGUILayout.LabelField("Drop here...", EditorStyles.centeredGreyMiniLabel);
@@ -94,9 +131,16 @@ namespace Daancode.Utils
             
             _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition, GUIStyle.none, GUIStyle.none);
             EditorGUIUtility.SetIconSize(new Vector2(13f, 13f));
-            for (var i = 0; i < _serializableList.Objects.Count; ++i)
+            for (var i = 0; i < _clipboard.Count; ++i)
             {
-                var obj = _serializableList.Objects[i];
+                var obj = _clipboard[i];
+
+                if(obj == null)
+                {
+                    _toRemove.Add(obj);
+                    continue;
+                }
+
                 OnElementGUI(obj);
             }
             EditorGUIUtility.SetIconSize(Vector2.zero);
@@ -109,90 +153,80 @@ namespace Daancode.Utils
             {
                 for (var i = 0; i < _toRemove.Count; ++i)
                 {
-                    _serializableList.Objects.Remove(_toRemove[i]);
+                    _clipboard.Remove(_toRemove[i]);
                 }
                 _toRemove.Clear();
+                
+                if(_clipboardData.AutoSave)
+                {
+                    SaveObjectsInPrefs(false);
+                }
             }
         }
 
         private void OnToolbarGUI()
         {
-            var style = EditorStyles.toolbarButton;
-            var width = GUILayout.Width(30f);
             EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
-            if (GUILayout.Button(EditorGUIUtility.IconContent("d_SaveAs"), style, width))
+
+            if (GUILayout.Button(Style.SettingsIcon, EditorStyles.toolbarButton, Style.Width))
+            {
+                ShowSettingsMenu();
+            }
+
+            GUILayout.FlexibleSpace();
+
+            if (!_clipboardData.AutoSave && GUILayout.Button(Style.SaveIcon, EditorStyles.toolbarButton, Style.Width))
             {
                 SaveObjectsInPrefs();
             }
 
             if (_selected.Count > 0)
             {
-                if (GUILayout.Button(EditorGUIUtility.IconContent("d_scenepicking_notpickable_hover"), EditorStyles.toolbarButton, width))
+                if (GUILayout.Button(Style.UnselectIcon, EditorStyles.toolbarButton, Style.Width))
                 {
                     ClearSelected();
                 }
-                if (GUILayout.Button(EditorGUIUtility.IconContent("d_TreeEditor.Trash"), EditorStyles.toolbarButton, width))
+                if (GUILayout.Button(Style.CloseIcon, EditorStyles.toolbarButton, Style.Width))
                 {
                     _toRemove.AddRange(_selected);
                     ClearSelected();
                 }
             }
-            else
-            {
-                GUILayout.FlexibleSpace();
-            }
 
-            if (GUILayout.Button(EditorGUIUtility.IconContent("d_Settings"), style, width))
-            {
-                ShowSettingsMenu();
-            }
             EditorGUILayout.EndHorizontal();
         }
 
         private void OnElementGUI(Object obj)
         {
             EditorGUILayout.BeginHorizontal(GUILayout.ExpandWidth(true));
-            var content = new GUIContent()
+
+            using(new Style.ColorScope(_selected.Contains(obj) ? new Color(0f, .5f, 1f, .5f) : UnityEngine.GUI.color))
             {
-                text = GetObjectName(obj),
-                image = AssetDatabase.GetCachedIcon(AssetDatabase.GetAssetPath(obj)),
-                tooltip = obj.name
-            };
-                
-            var style = new GUIStyle(EditorStyles.miniButtonLeft)
-            {
-                fontSize = 10, 
-                alignment = TextAnchor.MiddleLeft,
-                clipping = TextClipping.Clip
-            };
-                
-            var color = UnityEngine.GUI.color;
-            UnityEngine.GUI.color = _selected.Contains(obj) ? new Color(0f, .5f, 1f, .5f) : color;
-            if (GUILayout.Button(content, style))
-            {
-                if (Event.current.button == 1)
+                if (GUILayout.Button(Style.GetElementContent(obj, GetObjectName(obj)), Style.ElementStyle))
                 {
-                    if(_selected.Contains(obj))
+                    if (Event.current.button == 1)
                     {
-                        _selected.Remove(obj);
+                        if (_selected.Contains(obj))
+                        {
+                            _selected.Remove(obj);
+                        }
+                        else
+                        {
+                            _selected.Add(obj);
+                        }
+                        Selection.objects = _selected.ToArray();
                     }
                     else
                     {
-                        _selected.Add(obj);
+                        ClearSelected();
+                        Selection.SetActiveObjectWithContext(obj, null);
                     }
-                    Selection.objects = _selected.ToArray();
-                }
-                else
-                {
-                    ClearSelected();
-                    Selection.SetActiveObjectWithContext(obj, null);
                 }
             }
-            UnityEngine.GUI.color = color;
-            
-            if (GUILayout.Button(EditorGUIUtility.IconContent("d_winbtn_win_close"), EditorStyles.miniButtonRight, GUILayout.Width(20f)))
+
+            if (GUILayout.Button(Style.CloseIcon, EditorStyles.miniButtonRight, GUILayout.Width(20f)))
             {
-                _toRemove.Insert(0, obj);
+                _toRemove.Add(obj);
             }
             
             EditorGUILayout.EndHorizontal();
@@ -226,35 +260,54 @@ namespace Daancode.Utils
             for (var i = 0; i < objects.Length; ++i)
             {
                 var obj = objects[i];
-                if (_serializableList.Objects.Contains(obj))
+                if (_clipboard.Contains(obj))
                 {
                     continue;
                 }
-                
-                _serializableList.Objects.Add(obj);
+
+                _clipboard.Insert(0, obj);
+            }
+
+            if (_clipboardData.AutoSave)
+            {
+                SaveObjectsInPrefs(false);
             }
         }
 
-        private string GetObjectName(Object obj)
+        private (string, bool) GetObjectName(Object obj)
         {
+            if(obj == null)
+            {
+                return ("Unknown", false);
+            }
+
+ 
             var textSize = UnityEngine.GUI.skin.label.CalcSize(new GUIContent(obj.name));
             if (textSize.x + 35f < position.width)
             {
-                return obj.name;
+                return (obj.name, AssetDatabase.Contains(obj));
             }
 
             var ratio = (position.width - 35f) / textSize.x;
             var availableCharacters = Mathf.Clamp(Mathf.FloorToInt(obj.name.Length * ratio), 3, obj.name.Length);
-            return obj.name.Length > availableCharacters ? obj.name.Substring(0, availableCharacters - 3) + "..." : obj.name;
+            return (obj.name.Length > availableCharacters ? obj.name.Substring(0, availableCharacters - 3) + "..." : obj.name, AssetDatabase.Contains(obj));
         }
         
         private void ShowSettingsMenu()
         {
             var menu = new GenericMenu();
-            menu.AddItem(new GUIContent("Load from Prefs"), false, LoadObjectsFromPrefs);
+            menu.AddDisabledItem(new GUIContent("Editor Clipboard"));
             menu.AddSeparator(string.Empty);
-            menu.AddItem(new GUIContent("Clear"), false, _serializableList.Objects.Clear);
-            menu.AddItem(new GUIContent("Remove from Prefs"), false, () => EditorPrefs.DeleteKey(PREFS_KEY));
+            menu.AddItem(new GUIContent("Auto Save"), _clipboardData.AutoSave, () => _clipboardData.AutoSave = !_clipboardData.AutoSave);
+            menu.AddSeparator(string.Empty);
+            if(_clipboardData.AutoSave)
+            {
+                menu.AddItem(new GUIContent("Save"), false, () => SaveObjectsInPrefs());
+            }
+            menu.AddItem(new GUIContent("Load"), false, () => LoadObjectsFromPrefs());
+            menu.AddItem(new GUIContent("Clear"), false, () => { _clipboard.Clear(); ClearSelected(); });
+            menu.AddSeparator(string.Empty);
+            menu.AddItem(new GUIContent("Delete Prefs"), false, () => EditorPrefs.DeleteKey(ClipboardData.KEY));
             menu.ShowAsContext();
         }
 
@@ -262,6 +315,71 @@ namespace Daancode.Utils
         {
             _selected.Clear();
             Selection.objects = null;
+        }
+
+        private static class Style
+        {
+            private static GUIStyle _elementStyle = null;
+
+            public static GUILayoutOption Width => GUILayout.Width(30f);
+
+            public static GUIContent CloseIcon => GetIcon("winbtn_win_close");
+            public static GUIContent SettingsIcon => GetIcon("Settings");
+            //public static GUIContent TrashIcon => Style.GetIcon("TreeEditor.Trash");
+            public static GUIContent UnselectIcon => Style.GetIcon("scenepicking_notpickable_hover");
+            public static GUIContent SaveIcon => Style.GetIcon("SaveAs");
+            public static GUIContent ObjectIcon => Style.GetIcon("GameObject Icon");
+
+            public static GUIStyle ElementStyle
+            {
+                get
+                {
+                    _elementStyle ??= new GUIStyle(EditorStyles.miniButtonLeft)
+                    {
+                        fontSize = 10,
+                        alignment = TextAnchor.MiddleLeft,
+                        clipping = TextClipping.Clip
+                    };
+
+                    return _elementStyle;
+                }
+            }
+
+            public static GUIContent GetElementContent(Object obj, (string Text, bool IsAsset) title)
+            {
+                return new GUIContent()
+                {
+                    text = title.Text,
+                    image = title.IsAsset ? AssetDatabase.GetCachedIcon(AssetDatabase.GetAssetPath(obj)) : ObjectIcon.image,
+                    tooltip = title.IsAsset ? obj.name : obj.name + " - Not an asset, can't be saved"
+                };
+            }
+
+            public static GUIContent GetIcon(string iconId)
+            {
+                if (iconId.StartsWith("d_"))
+                {
+                    iconId = iconId.Substring(2);
+                }
+
+                return EditorGUIUtility.IconContent(EditorGUIUtility.isProSkin ? $"d_{iconId}" : iconId);
+            }
+
+            public class ColorScope : System.IDisposable
+            {
+                private Color _originalColor;
+
+                public ColorScope(Color color)
+                {
+                    _originalColor = UnityEngine.GUI.color;
+                    UnityEngine.GUI.color = color;
+                }
+
+                public void Dispose()
+                {
+                    UnityEngine.GUI.color = _originalColor;
+                }
+            }
         }
     }
 }
