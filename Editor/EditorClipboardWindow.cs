@@ -103,11 +103,19 @@ namespace Daancode.Utils
             }
             GUILayout.FlexibleSpace();
 
-            if(!string.IsNullOrEmpty(_controller.SelectedCategory) && GUILayout.Button(EditorClipboardStyle.SortIcon, EditorStyles.toolbarButton))
+            if(!string.IsNullOrEmpty(_controller.SelectedCategory))
             {
-                _controller.SortSelectedCategory();
-            }
+                if (GUILayout.Button(EditorClipboardStyle.SortIcon, EditorStyles.toolbarButton))
+                {
+                    _controller.SortSelectedCategory();
+                }
 
+                if (GUILayout.Button(EditorClipboardStyle.TrashIcon, EditorStyles.toolbarButton) &&
+                    EditorUtility.DisplayDialog("Remove Category", "Are you sure?", $"Remove {_controller.SelectedCategory}", "Cancel"))
+                {
+                    _controller.RemoveCategory(_controller.SelectedCategory);
+                }
+            }
 
             EditorGUILayout.EndHorizontal();
         }
@@ -121,9 +129,9 @@ namespace Daancode.Utils
                     _addCategoryMode = false;
                 }
 
-                EditorGUI.BeginChangeCheck();
-                _newCategoryName = EditorGUILayout.DelayedTextField(_newCategoryName, EditorStyles.toolbarTextField);   
-                if (EditorGUI.EndChangeCheck() || GUILayout.Button(EditorClipboardStyle.AcceptIcon, EditorStyles.toolbarButton))
+                _newCategoryName = EditorGUILayout.TextField(_newCategoryName, EditorStyles.toolbarTextField);   
+
+                if (GUILayout.Button(EditorClipboardStyle.AcceptIcon, EditorStyles.toolbarButton))
                 {
                     TryAddCategory();
                 }
@@ -143,20 +151,8 @@ namespace Daancode.Utils
         private void ShowSettingsMenu()
         {
             DeselectCategory();
-
             var menu = new GenericMenu();
             menu.AddItem(new GUIContent("Add category..."), false, () => _addCategoryMode = !_addCategoryMode);
-
-            /*menu.AddItem(new GUIContent("Auto Save"), _clipboardData.AutoSave, () => _clipboardData.AutoSave = !_clipboardData.AutoSave);
-            menu.AddSeparator(string.Empty);
-            if(_clipboardData.AutoSave)
-            {
-                //menu.AddItem(new GUIContent("Save"), false, () => SaveObjectsInPrefs());
-            }
-            //menu.AddItem(new GUIContent("Load"), false, () => LoadObjectsFromPrefs());
-            //menu.AddItem(new GUIContent("Clear"), false, () => { _clipboard.Clear(); ClearSelected(); });
-            menu.AddSeparator(string.Empty);
-            menu.AddItem(new GUIContent("Delete Prefs"), false, () => EditorPrefs.DeleteKey(ClipboardData.KEY));*/
             menu.ShowAsContext();
         }
 

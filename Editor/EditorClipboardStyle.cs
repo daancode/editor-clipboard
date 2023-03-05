@@ -14,6 +14,7 @@ namespace Daancode.Utils
         public const string ObjectIcon = "GameObject Icon";
         public const string Sort = "AlphabeticalSorting";
         public const string OpenAsset = "Import";
+        public const string Trash = "TreeEditor.Trash";
     }
 
     internal class EditorClipboardGUI
@@ -64,6 +65,7 @@ namespace Daancode.Utils
         public static GUIContent AcceptIcon => GetIcon(Icons.Accept);
         public static GUIContent SortIcon => GetIcon(Icons.Sort);
         public static GUIContent OpenAssetIcon => GetIcon(Icons.OpenAsset);
+        public static GUIContent TrashIcon => GetIcon(Icons.Trash);
 
         public static GUIStyle NoMargins
         {

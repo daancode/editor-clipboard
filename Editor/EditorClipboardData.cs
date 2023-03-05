@@ -67,6 +67,13 @@ namespace Daancode.Utils
             _objectsToRemove.Clear();
         }
 
+        public void Remove()
+        {
+            EditorPrefs.DeleteKey(Key);
+            _objectsToRemove.AddRange(_objects);
+            _isDirty = true;
+        }
+
         public void SaveIfDirty()
         {
             if(!_isDirty)

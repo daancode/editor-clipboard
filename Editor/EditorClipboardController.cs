@@ -10,7 +10,6 @@ namespace Daancode.Utils
         private readonly List<EditorClipboardData> _clipboards = new List<EditorClipboardData>();
         private readonly List<Object> _selection = new List<Object>();
 
-
         public EditorClipboardData this[int index] => index >= 0 && index < _clipboards.Count ? _clipboards[index] : null;
         public int ClipboardsCount => _clipboards.Count;
 
@@ -54,6 +53,24 @@ namespace Daancode.Utils
             _clipboards.Add(new EditorClipboardData(categoryName));
             Save();
             return true;
+        }
+
+        public void RemoveCategory(string category)
+        {
+            _clipboards.RemoveAll(RemoveCategoryInternal);
+            _categories.RemoveAll(c => c == category);
+            ClearSelected();
+
+            bool RemoveCategoryInternal(EditorClipboardData data)
+            {
+                if(data.Category == category)
+                {
+                    data.Remove();
+                    return true;
+                }
+
+                return false;
+            }
         }
 
         public bool IsSelected(Object obj)
